@@ -1,0 +1,44 @@
+name: Build Maven Project
+
+on:
+  push:
+    branches:
+      - main  # Runs on push to main
+  pull_request:
+    branches:
+      - main  # Runs on PR to main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set Up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: maven  # Cache Maven dependencies
+
+      - name: Set Environment Variables
+        run: |
+          echo "DB_URL=${{ secrets.DB_URL }}" >> $GITHUB_ENV
+          echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> $GITHUB_ENV
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
+          echo "REDIS_HOST=${{ secrets.REDIS_HOST }}" >> $GITHUB_ENV
+          echo "REDIS_PORT=${{ secrets.REDIS_PORT }}" >> $GITHUB_ENV
+          echo "SMS_API_BASE_URL=${{ secrets.SMS_API_BASE_URL }}" >> $GITHUB_ENV
+          echo "SMS_API_KEY=${{ secrets.SMS_API_KEY }}" >> $GITHUB_ENV
+          echo "SMS_SENDER=${{ secrets.SMS_SENDER }}" >> $GITHUB_ENV
+          echo "CURRENCY_API_KEY=${{ secrets.CURRENCY_API_KEY }}" >> $GITHUB_ENV
+          echo "CURRENCY_API_BASE_URL=${{ secrets.CURRENCY_API_BASE_URL }}" >> $GITHUB_ENV
+          echo "FLUTTERWAVE_API_BASE_URL=${{ secrets.FLUTTERWAVE_API_BASE_URL }}" >> $GITHUB_ENV
+          echo "FLUTTERWAVE_PUBLIC_KEY=${{ secrets.FLUTTERWAVE_PUBLIC_KEY }}" >> $GITHUB_ENV
+          echo "FLUTTERWAVE_SECRET_KEY=${{ secrets.FLUTTERWAVE_SECRET_KEY }}" >> $GITHUB_ENV
+          echo "FLUTTERWAVE_ENCRYPTION_KEY=${{ secrets.FLUTTERWAVE_ENCRYPTION_KEY }}" >> $GITHUB_ENV
+
+      - name: Build with Maven (No Tests)
+        run: mvn clean package -DskipTests
