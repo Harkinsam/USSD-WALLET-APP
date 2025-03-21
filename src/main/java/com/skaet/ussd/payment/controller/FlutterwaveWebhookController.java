@@ -1,0 +1,82 @@
+package com.skaet.ussd.payment.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.skaet.ussd.account.service.AccountService;
+import com.skaet.ussd.payment.dto.FlutterwaveWebhookDto;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.math.BigDecimal;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/flutterwave")
+@RequiredArgsConstructor
+@Slf4j
+public class FlutterwaveWebhookController {
+    private final AccountService accountService;
+    private static final String FLW_SECRET_HASH = "MY_FLUTTERWAVE_SECRET_HASH";
+
+    @PostMapping("/webhook")
+    public void handleWebhook(@RequestBody(required = false) String rawBody,
+                              @RequestHeader HttpHeaders headers) {
+        if (rawBody == null || rawBody.isEmpty()) {
+            log.warn("Received empty webhook payload.");
+            return;
+        }
+
+        log.info("Received Webhook Raw Payload: {}", rawBody);
+
+        // Deserialize manually if needed
+        FlutterwaveWebhookDto webhook;
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            webhook = objectMapper.readValue(rawBody, FlutterwaveWebhookDto.class);
+        } catch (Exception e) {
+            log.error("Failed to parse webhook payload: {}", e.getMessage());
+            return;
+        }
+
+        log.info("Deserialized Webhook DTO: {}", webhook);
+
+        // Verify Flutterwave Signature
+        String receivedHash = headers.getFirst("verif-hash");
+        final String FLW_SECRET_HASH = "MY_FLUTTERWAVE_SECRET_HASH";
+
+        if (!FLW_SECRET_HASH.equals(receivedHash)) {
+            log.warn("⚠️ Invalid Webhook Signature! Possible spoofing attempt.");
+            return;
+        }
+
+        // Process webhook
+        FlutterwaveWebhookDto.TransactionData data = webhook.getData();
+        if (data != null && "successful".equalsIgnoreCase(data.getStatus()) && "ussd".equalsIgnoreCase(data.getPaymentType())) {
+            BigDecimal amount = data.getAmount();
+            String phoneNumber = data.getCustomer().getPhoneNumber();
+
+            if (phoneNumber == null || phoneNumber.equals("N/A")) {
+                log.warn("⚠️ Missing or invalid phone number for transaction: {}", data.getTxRef());
+                return;
+            }
+
+            if ("charge.completed".equalsIgnoreCase(webhook.getEvent())) {
+                // USSD Deposit (Credit Account)
+                accountService.creditAccount(phoneNumber, amount);
+                log.info("✅ USSD Deposit Successful - TX Ref: {} | Amount: {} NGN | Phone: {}", data.getTxRef(), amount, phoneNumber);
+            } else if ("transfer.completed".equalsIgnoreCase(webhook.getEvent())) {
+                // USSD Withdrawal (Debit Account)
+                accountService.debitAccount(phoneNumber, amount);
+                log.info("✅ USSD Withdrawal Successful - TX Ref: {} | Amount: {} NGN | Phone: {}", data.getTxRef(), amount, phoneNumber);
+            }
+        } else {
+            log.warn("⚠️ Ignored transaction - Status: {} | Type: {}", data.getStatus(), data.getPaymentType());
+        }
+}
+
+
+
+}

@@ -1,0 +1,10 @@
+package com.skaet.ussd.payment.gateway;
+
+import java.math.BigDecimal;
+
+public interface PaymentGateway {
+    String initiateDeposit(String phoneNumber, BigDecimal amount);
+    String verifyTransaction(String reference);
+    boolean isAvailable();
+    String getGatewayName();
+}
